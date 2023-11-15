@@ -1,7 +1,6 @@
 from sortedcontainers import SortedDict
 from posix.time cimport clock_gettime, timespec, CLOCK_REALTIME
-import cython
-cimport cython
+from Order cimport Order
 
 import numpy as np
 #cimport numpy as np
@@ -16,38 +15,6 @@ directive_defaults['linetrace'] = True
 directive_defaults['binding'] = True
 
 cdef timespec ts
-
-cdef class Order:
-    __slots__ = ['uid', 'is_bid', 'size', 'price', 'timestamp',
-                 'next_item', 'previous_item', 'root']
-    cdef public int uid
-    cdef public bint is_bid
-    cdef public double price
-    cdef public double size
-    cdef public unsigned long timestamp
-    def __cinit__(self,
-                  int uid,
-                  bint is_bid,
-                  double size,
-                  double price,
-                  unsigned long timestamp):
-        # Data Values
-        self.uid = uid
-        self.is_bid = is_bid
-        self.price = price
-        self.size = size
-        clock_gettime(CLOCK_REALTIME, &ts)
-        # Conversion to milliseconds
-        self.timestamp = timestamp if timestamp != 0 else ts.tv_nsec // 1_000_000
-
-    def __str__(self):
-        return self.__repr__()
-
-    def __repr__(self):
-        return str((self.uid, self.is_bid, self.price, self.size, self.timestamp))
-
-
-
 
 
 
@@ -64,39 +31,17 @@ cdef class LimitOrderBook:
     """
     # @TODO Finish docs. Add optional self centering. Add finding empty levels. Add measures of fair price.
     # @TODO Remove benchmarking. Expand book to include adaptors.
+
+
     __slots__ = ['prices_ask', 'sizes_ask', 'prices_bid', 'sizes_bid', 'best_price_ask', 'best_price_bid', 'max_size',
                  'index_best_bid', 'index_best_ask', 'index_worst_ask', 'index_worst_bid', 'tick_size', 'decimals']
-    # Ask prices increase with the indices.
-    cdef public prices_ask
-    cdef public sizes_ask
-    # Bid prices decrease with the indices.
-    cdef public prices_bid
-    cdef public sizes_bid
-    # Number of prices to keep.
-    cdef public int max_size
-    cdef public int index_best_ask
-    cdef public int index_worst_ask
-    cdef public int index_best_bid
-    cdef public int index_worst_bid
-    cdef public double best_price_ask
-    cdef public double best_price_bid
-    cdef public double max_price_ask
-    cdef public double min_price_bid
-    cdef public double tick_size
-    cdef public int decimals
-    cdef public double time_update
-    cdef public double time_remove
-    cdef public int n_update
-    cdef public int n_remove
-    cdef public int temp_bench_1
-    cdef public int n_bench_1
-    cdef public double time_get_new_bids
-    cdef public int n_new_bids
 
     def __cinit__(self, int max_size=2000, tick_size=0.5, decimals=2):
+        # Bid prices decrease with the indices.
         self.prices_bid = []
         self.sizes_bid = []
         self.sizes_ask = []
+        # Ask prices increase with the indices.
         self.prices_ask = []
         self.best_price_ask
         self.best_price_bid
@@ -140,6 +85,9 @@ cdef class LimitOrderBook:
         cdef int j
         for j in range(len(orders)):
             self.process(orders[j])
+
+    cpdef process_exchange_messages(self, dict messages):
+        pass
 
     cpdef void process(self, Order order):
         cdef double current
@@ -317,41 +265,14 @@ cdef class LimitOrderBook:
     cdef (double, double) get_bid_at_index(self, int index):
         return self.get_bid_price_at_index(index), self.sizes_bid[index]
 
-    cpdef list get_new_updates_bid(self, list old_updates, float limit):
+    cpdef list get_new_updates_ask(self, list old_updates, double limit):
         """
-
+        This function creates orders from exchange update messages. It will be overriden in child classes
         """
+        return []
 
-        #cdef np.ndarray[DTYPE, ndim=2] new_updates
-        #cdef int [:, ::1] new_updates
-        cdef double current
-        clock_gettime(CLOCK_REALTIME, &ts)
-        current = ts.tv_nsec
-        cdef list new_updates = []
-        cdef double temp
-        cdef list old_update
-        cdef int j
-        for j in range(len(old_updates) - 1, -1, -1):
-            old_update = old_updates[j]
-            temp = float(old_update[0])
-            new_updates.append([temp, float(old_update[1])])
-            self.n_new_bids += 1
-            if temp < limit:
-                break
-        clock_gettime(CLOCK_REALTIME, &ts)
-        self.time_get_new_bids += ts.tv_nsec - current
-
-        return new_updates
-
-    cpdef list get_new_updates_ask(self, list old_updates, float limit):
-        cdef list new_updates = []
-        cdef double temp
-        cdef list old_update
-        for j in range(len(old_updates)):
-            old_update = old_updates[j]
-            temp = float(old_update[0])
-            new_updates.append([temp, float(old_update[1])])
-            if temp < limit:
-                break
-        return new_updates
-
+    cpdef list get_new_updates_bid(self, list old_updates, double limit):
+        """
+        This function creates orders from exchange update messages. It will be overriden in child classes
+        """
+        return []
