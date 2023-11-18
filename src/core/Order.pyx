@@ -16,9 +16,13 @@ cdef class Order:
         self.is_bid = is_bid
         self.price = price
         self.size = size
-        clock_gettime(CLOCK_REALTIME, &ts)
+        if timestamp != 0:
+            self.timestamp = timestamp
         # Conversion to milliseconds
-        self.timestamp = timestamp if timestamp != 0 else ts.tv_nsec // 1_000_000
+        else:
+            clock_gettime(CLOCK_REALTIME, &ts)
+            self.timestamp = int(ts.tv_nsec // 1_000_000)
+
 
     def __str__(self):
         return self.__repr__()
